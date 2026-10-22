@@ -1,0 +1,10 @@
+node_modules
+dist
+.data
+public/audio
+public/renders
+*.log
+.env
+.server.pid
+.libs
+.DS_Store

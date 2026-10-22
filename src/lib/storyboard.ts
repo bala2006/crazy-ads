@@ -1,0 +1,61 @@
+import { ASPECT_SIZE, FPS, type LayoutId, type Scene, type SkillId, type Storyboard } from '../remotion/types';
+
+const KEY = 'motionforge:storyboard:v1';
+
+export const emptyStoryboard = (): Storyboard => ({
+  title: 'Untitled film',
+  skill: 'neon-cyber' as SkillId,
+  aspect: '16:9',
+  fps: FPS,
+  scenes: [],
+});
+
+export const newScene = (layout: LayoutId = 'statement'): Scene => ({
+  id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `s-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  layout,
+  headline: 'New scene',
+  seconds: 4,
+  transition: 'fade',
+});
+
+export const sceneFramesOf = (scene: Scene, fps = FPS) => Math.max(1, Math.round(scene.seconds * fps));
+
+export const totalFrames = (storyboard: Storyboard) =>
+  storyboard.scenes.reduce((sum, scene) => sum + sceneFramesOf(scene, storyboard.fps), 0);
+
+export const startFrameOf = (storyboard: Storyboard, index: number) =>
+  storyboard.scenes.slice(0, index).reduce((sum, scene) => sum + sceneFramesOf(scene, storyboard.fps), 0);
+
+export const compositionSize = (storyboard: Storyboard) => ASPECT_SIZE[storyboard.aspect] ?? ASPECT_SIZE['16:9'];
+
+export const totalSeconds = (storyboard: Storyboard) => storyboard.scenes.reduce((sum, scene) => sum + scene.seconds, 0);
+
+export const loadBoard = (): Storyboard => {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return emptyStoryboard();
+    const parsed = JSON.parse(raw) as Storyboard;
+    if (!parsed?.scenes?.length) return emptyStoryboard();
+    return { ...emptyStoryboard(), ...parsed };
+  } catch {
+    return emptyStoryboard();
+  }
+};
+
+export const saveBoard = (storyboard: Storyboard) => {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(storyboard));
+  } catch {
+    /* private mode — the studio still works, it just won't persist */
+  }
+};
+
+export const formatBytes = (bytes: number) => {
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+export const formatSeconds = (seconds: number) => {
+  const value = Math.round(seconds * 10) / 10;
+  return `${value}s`;
+};
