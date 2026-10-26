@@ -25,10 +25,10 @@ export const Button: React.FC<ButtonProps> = ({
     className={cx(
       'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-[filter,background-color,border-color,transform] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50',
       size === 'sm' ? 'px-2.5 py-1.5 text-xs' : 'px-3.5 py-2.5 text-sm',
-      variant === 'primary' && 'bg-brand text-ink-950 font-semibold shadow-glow hover:brightness-110',
+      variant === 'primary' && 'bg-brand text-ink-950 font-semibold shadow-glow hover:brightness-105',
       variant === 'secondary' && 'border border-line bg-ink-800/80 text-text hover:border-line-bright hover:bg-ink-700',
       variant === 'ghost' && 'text-dim hover:bg-ink-800 hover:text-text',
-      variant === 'danger' && 'border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20',
+      variant === 'danger' && 'border border-line-bright bg-ink-800 text-text hover:border-line-bright hover:bg-ink-700',
       className,
     )}
   >
@@ -107,8 +107,8 @@ export const Badge: React.FC<{ children: ReactNode; tone?: 'neutral' | 'accent' 
       'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] uppercase',
       tone === 'neutral' && 'border-line bg-ink-800/60 text-dim',
       tone === 'accent' && 'border-brand/40 bg-brand/15 text-brand-soft',
-      tone === 'ok' && 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300',
-      tone === 'warn' && 'border-amber-400/30 bg-amber-400/10 text-amber-200',
+      tone === 'ok' && 'border-brand/60 bg-brand/20 text-brand-soft',
+      tone === 'warn' && 'border-line-bright/60 bg-ink-800 text-text',
     )}
   >
     {children}
@@ -124,8 +124,8 @@ export const Notice: React.FC<{ kind?: 'info' | 'error' | 'ok'; children: ReactN
     className={cx(
       'flex items-start gap-2 rounded-lg border px-3 py-2 text-xs leading-relaxed',
       kind === 'info' && 'border-brand/30 bg-brand/10 text-brand-soft',
-      kind === 'ok' && 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
-      kind === 'error' && 'border-red-500/30 bg-red-500/10 text-red-200',
+      kind === 'ok' && 'border-brand/60 bg-brand/20 text-brand-soft',
+      kind === 'error' && 'border-line-bright bg-ink-800 text-text',
     )}
   >
     <div className="flex-1">{children}</div>
@@ -152,6 +152,13 @@ const paths = {
   check: 'M5 13l4 4L19 7',
   copy: 'M9 9h11v11H9V9zM5 15H4V4h11v1',
   bolt: 'M13 2L4 14h6l-1 8 9-12h-6l1-8z',
+  home: 'M3 10.5 12 3l9 7.5M5 9v11h14V9M9 20v-6h6v6',
+  clock: 'M12 8v4l2.5 1.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  layers: 'm12 3 9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 16l9 5 9-5',
+  chevron: 'm9 18 6-6-6-6',
+  arrow: 'M5 12h14m-6-6 6 6-6 6',
+  search: 'm20 20-4.5-4.5M18 10.5a7.5 7.5 0 11-15 0 7.5 7.5 0 0115 0z',
+  user: 'M20 21a8 8 0 00-16 0m8-10a4 4 0 100-8 4 4 0 000 8z',
 };
 
 export const Icon: React.FC<{ name: keyof typeof paths; className?: string }> = ({ name, className }) => (

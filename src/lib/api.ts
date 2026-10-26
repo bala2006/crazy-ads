@@ -1,4 +1,5 @@
 import type { AspectId, Scene, SkillId, Storyboard } from '../remotion/types';
+import type { Generation, WorkspaceProfile } from './workspace';
 
 export type PublicSettings = {
   ai: { baseUrl: string; model: string; temperature: number; hasKey: boolean; keyHint: string | null };
@@ -31,6 +32,11 @@ const request = async <T>(url: string, init: Init = {}): Promise<T> => {
 };
 
 export const api = {
+  generations: () => request<{ generations: Generation[]; profile: WorkspaceProfile }>('/api/workspace'),
+  saveGeneration: (generation: Generation) =>
+    request<{ generation: Generation }>('/api/workspace/generations', { method: 'PUT', body: generation }),
+  saveProfile: (profile: WorkspaceProfile) =>
+    request<{ profile: WorkspaceProfile }>('/api/workspace/profile', { method: 'PUT', body: profile }),
   settings: () => request<PublicSettings>('/api/settings'),
   saveSettings: (patch: SettingsPatch) => request<PublicSettings>('/api/settings', { method: 'PUT', body: patch }),
   clearKey: (provider: 'ai' | 'elevenlabs') =>

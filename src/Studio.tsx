@@ -5,11 +5,14 @@ import { Badge, Button, Icon, Label, Notice, Panel, Select, TextArea, TextInput,
 import { api, audioDuration, renderVideo, type PublicSettings, type RenderResult, type Voice } from './lib/api';
 import {
   compositionSize,
+  emptyStoryboard,
   formatBytes,
   formatSeconds,
   loadBoard,
+  loadActiveProjectId,
   newScene,
   saveBoard,
+  saveActiveProjectId,
   startFrameOf,
   totalFrames,
   totalSeconds,
@@ -18,6 +21,8 @@ import { DEMO_STORYBOARD } from './remotion/demo';
 import { MotionGraphic } from './remotion/Video';
 import { SKILLS, getSkill } from './remotion/skills';
 import { ASPECTS, type AspectId, type Storyboard } from './remotion/types';
+import type { Generation } from './lib/workspace';
+import { sanitizeInlineSvg } from './lib/svg';
 
 type Notice_ = { kind: 'info' | 'ok' | 'error'; text: string };
 type Busy = 'plan' | 'voice' | 'render' | null;
@@ -25,8 +30,18 @@ type Busy = 'plan' | 'voice' | 'render' | null;
 const DURATIONS = [15, 20, 30, 45, 60, 90];
 const SCENE_COUNTS = [3, 4, 5, 6, 7, 8];
 
-export const Studio: React.FC = () => {
+type Props = {
+  generations: Generation[];
+  onProjectSaved: (generation: Generation) => Promise<void>;
+  newProjectToken: number;
+  workspaceLoaded: boolean;
+};
+
+export const Studio: React.FC<Props> = ({ generations, onProjectSaved, newProjectToken, workspaceLoaded }) => {
   const [board, setBoard] = useState<Storyboard>(() => loadBoard());
+  const activeProjectRef = useRef<string | null>(loadActiveProjectId());
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => activeProjectRef.current);
+  const lastPersistedBoard = useRef(JSON.stringify(board));
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [voiceId, setVoiceId] = useState('');
@@ -38,15 +53,59 @@ export const Studio: React.FC = () => {
 
   const [busy, setBusy] = useState<Busy>(null);
   const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<RenderResult | null>(null);
+  const [result, setResult] = useState<RenderResult | null>(() => generations.find((item) => item.id === activeProjectRef.current)?.render ?? null);
   const [notice, setNotice] = useState<Notice_ | null>(null);
   const [openScene, setOpenScene] = useState<string | null>(null);
 
   const playerRef = useRef<PlayerRef>(null);
 
+  const selectProject = (id: string | null) => {
+    activeProjectRef.current = id;
+    saveActiveProjectId(id);
+    setActiveProjectId(id);
+  };
+
+  const persistProject = (storyboard: Storyboard, source: Generation['source'], render?: Generation['render']) => {
+    const existingId = activeProjectRef.current;
+    const existing = generations.find((item) => item.id === existingId);
+    const now = new Date().toISOString();
+    const generation: Generation = {
+      id: existingId ?? crypto.randomUUID(),
+      title: storyboard.title,
+      source: existing?.source ?? source,
+      storyboard,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      ...(render ?? existing?.render ? { render: render ?? existing?.render } : {}),
+    };
+    if (!existingId) selectProject(generation.id);
+    void onProjectSaved(generation).catch((error: Error) => setNotice({ kind: 'error', text: `Could not save this project: ${error.message}` }));
+    return generation;
+  };
+
+  useEffect(() => {
+    if (!newProjectToken) return;
+    setBoard(emptyStoryboard());
+    selectProject(null);
+    setResult(null);
+    setNotice(null);
+  }, [newProjectToken]);
+
   useEffect(() => {
     saveBoard(board);
-  }, [board]);
+    if (!workspaceLoaded) return;
+    if (!board.scenes.length) return;
+    if (board.scenes.some((scene) => scene.visualSvg && !sanitizeInlineSvg(scene.visualSvg))) return;
+    const serializedBoard = JSON.stringify(board);
+    if (serializedBoard === lastPersistedBoard.current && activeProjectId) return;
+    lastPersistedBoard.current = serializedBoard;
+    const timeout = window.setTimeout(() => persistProject(board, 'manual'), 450);
+    return () => window.clearTimeout(timeout);
+  }, [board, activeProjectId, workspaceLoaded]);
+
+  useEffect(() => {
+    setResult(generations.find((item) => item.id === activeProjectId)?.render ?? null);
+  }, [activeProjectId, generations]);
 
   useEffect(() => {
     api
@@ -96,6 +155,8 @@ export const Studio: React.FC = () => {
         withNarration ? scene : { ...scene, narration: undefined, audio: undefined },
       );
       const next: Storyboard = { ...response.storyboard, scenes };
+      selectProject(null);
+      persistProject(next, response.source);
       setBoard(next);
       setOpenScene(null);
       playerRef.current?.seekTo(0);
@@ -162,6 +223,7 @@ export const Studio: React.FC = () => {
     try {
       const output = await renderVideo(board, setProgress);
       setResult(output);
+      persistProject(board, 'manual', output);
       setNotice({ kind: 'ok', text: `Rendered ${output.fileName}.` });
     } catch (error) {
       setNotice({ kind: 'error', text: (error as Error).message });
@@ -176,7 +238,16 @@ export const Studio: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto grid max-w-[1560px] items-start gap-5 px-4 py-5 lg:grid-cols-[minmax(0,390px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
+    <div className="mx-auto max-w-[1440px] px-5 py-7 lg:px-8 lg:py-9">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="mb-2 text-xs font-semibold tracking-[0.16em] text-dim uppercase">{activeProjectId ? 'Video editor' : 'Create'}</p>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{activeProjectId ? board.title : 'New creation'}</h1>
+          <p className="mt-2 text-base text-dim">Start with a brief, shape your scenes, refine the vector art, and export the MP4.</p>
+        </div>
+        <Button variant="secondary" onClick={() => { setBoard(emptyStoryboard()); selectProject(null); setResult(null); }} icon={<Icon name="plus" />}>Start fresh</Button>
+      </header>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,390px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,430px)_minmax(0,1fr)]">
       {/* ------------------------------- left rail ------------------------------ */}
       <div className="space-y-5">
         <Panel title="Brief" hint="One or two sentences is plenty.">
@@ -232,7 +303,7 @@ export const Studio: React.FC = () => {
                 type="checkbox"
                 checked={withNarration}
                 onChange={(event) => setWithNarration(event.target.checked)}
-                className="size-3.5 accent-[#7c5cff]"
+                className="size-3.5 accent-brand"
               />
               Write a voiceover script for each scene
             </label>
@@ -288,13 +359,7 @@ export const Studio: React.FC = () => {
                     <span className="truncate text-[11px] font-semibold text-text">{item.name}</span>
                     {selected ? <Icon name="check" className="size-3.5 text-brand-soft" /> : null}
                   </div>
-                  <div className="mt-2 flex h-7 overflow-hidden rounded" style={{ background: item.palette.bg }}>
-                    <span className="flex-1" style={{ background: item.palette.accent }} />
-                    <span className="flex-1" style={{ background: item.palette.accent2 }} />
-                    <span className="flex-1" style={{ background: item.palette.fg, opacity: 0.9 }} />
-                    <span className="flex-1" style={{ background: item.palette.muted, opacity: 0.7 }} />
-                  </div>
-                  <p className="line-clamp-2 mt-1.5 text-[10px] leading-snug text-dim">{item.blurb}</p>
+                  <p className="line-clamp-2 mt-2 text-[10px] leading-snug text-dim">{item.blurb}</p>
                 </button>
               );
             })}
@@ -331,7 +396,7 @@ export const Studio: React.FC = () => {
             </div>
             <div className="flex items-center gap-1.5">
               {isDemo ? (
-                <Button size="sm" onClick={() => setBoard(DEMO_STORYBOARD)} icon={<Icon name="play" />}>
+                <Button size="sm" onClick={() => { selectProject(null); setBoard(DEMO_STORYBOARD); }} icon={<Icon name="play" />}>
                   Load example
                 </Button>
               ) : null}
@@ -455,10 +520,10 @@ export const Studio: React.FC = () => {
               ) : null}
 
               {result ? (
-                <div className="space-y-2 rounded-lg border border-emerald-400/25 bg-emerald-400/5 p-2.5">
+                <div className="space-y-2 rounded-lg border border-brand/40 bg-brand/15 p-2.5">
                   <div className="flex items-center gap-2 text-xs">
-                    <Icon name="check" className="size-4 text-emerald-300" />
-                    <span className="font-medium text-emerald-200">Ready</span>
+                    <Icon name="check" className="size-4 text-brand-soft" />
+                    <span className="font-medium text-brand-soft">Ready</span>
                     <span className="text-dim">
                       {formatBytes(result.bytes)} · {(result.ms / 1000).toFixed(1)}s
                     </span>
@@ -485,6 +550,7 @@ export const Studio: React.FC = () => {
             </div>
           </Panel>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -41,6 +41,8 @@ export type Scene = {
   transition: TransitionId;
   /** path returned by POST /api/voice, relative to the public dir */
   audio?: string;
+  /** Safe inline SVG used as a decorative vector element in the rendered scene. */
+  visualSvg?: string;
   accent?: string;
 };
 

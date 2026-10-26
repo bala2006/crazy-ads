@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ASPECTS, LAYOUTS, MAX_SCENE_SECONDS, MIN_SCENE_SECONDS, SKILL_IDS, TRANSITIONS } from './types';
+import { sanitizeInlineSvg } from '../lib/svg';
 
 /** Strict schema for anything the app stores, sends to the renderer, or trusts. */
 export const SceneSchema = z.object({
@@ -14,6 +15,7 @@ export const SceneSchema = z.object({
   seconds: z.number().min(MIN_SCENE_SECONDS).max(MAX_SCENE_SECONDS),
   transition: z.enum(TRANSITIONS),
   audio: z.string().max(300).optional(),
+  visualSvg: z.string().max(16_000).optional().refine((value) => !value || Boolean(sanitizeInlineSvg(value)), 'Unsafe or invalid inline SVG'),
   accent: z.string().max(32).optional(),
 });
 
@@ -35,6 +37,7 @@ export const AiSceneSchema = z.object({
   value: z.string().optional(),
   narration: z.string().optional(),
   seconds: z.number().optional(),
+  visualSvg: z.string().max(16_000).optional(),
 });
 
 export const AiPlanSchema = z.object({

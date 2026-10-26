@@ -5,44 +5,46 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --color-ink-950: #06070b;
-  --color-ink-900: #0a0c12;
-  --color-ink-800: #10131c;
-  --color-ink-700: #181d2a;
-  --color-line: #232839;
-  --color-line-bright: #333d55;
-  --color-text: #e9edf7;
-  --color-dim: #8b96b2;
-  --color-brand: #7c5cff;
-  --color-brand-2: #22e6ff;
-  --color-brand-soft: #c9bcff;
+  --color-ink-950: #e8e0d2;
+  --color-ink-900: #f3ede3;
+  --color-ink-800: #ddd4c5;
+  --color-ink-700: #d0c6b5;
+  --color-line: #c9bfaf;
+  --color-line-bright: #a69b89;
+  --color-text: #24211d;
+  --color-dim: #625c53;
+  --color-brand: #2b2823;
+  --color-brand-2: #171512;
+  --color-brand-soft: #3b362f;
+  --color-sidebar: #292722;
+  --color-sidebar-raised: #37342e;
+  --color-sidebar-line: #48443c;
+  --color-sidebar-text: #eee7db;
+  --color-sidebar-dim: #bbb3a5;
 
-  --shadow-glow: 0 10px 30px -12px rgb(124 92 255 / 0.75);
-  --shadow-panel: 0 30px 70px -50px rgb(0 0 0 / 0.95);
+  --shadow-glow: 0 8px 22px -12px rgb(36 33 29 / 0.35);
+  --shadow-panel: 0 16px 36px -28px rgb(36 33 29 / 0.22);
 }
 
 @utility bg-brand-gradient {
-  background-image: linear-gradient(100deg, #7c5cff 0%, #4f8cff 48%, #22e6ff 100%);
+  background-image: linear-gradient(100deg, #171512 0%, #3b362f 100%);
 }
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
     min-height: 100dvh;
     background-color: var(--color-ink-950);
-    background-image:
-      radial-gradient(900px 500px at 12% -10%, rgb(124 92 255 / 0.16), transparent 70%),
-      radial-gradient(700px 400px at 95% 0%, rgb(34 230 255 / 0.09), transparent 65%);
     color: var(--color-text);
     -webkit-font-smoothing: antialiased;
     font-family: var(--font-sans);
   }
 
   ::selection {
-    background: rgb(124 92 255 / 0.35);
+    background: rgb(43 40 35 / 0.16);
   }
 
   * {
@@ -75,14 +77,14 @@
     width: 14px;
     border-radius: 999px;
     background: var(--color-brand);
-    border: 2px solid #0a0c12;
+    border: 2px solid #e8e0d2;
     cursor: pointer;
   }
 
   input[type='range']::-moz-range-thumb {
     height: 14px;
     width: 14px;
-    border: 2px solid #0a0c12;
+    border: 2px solid #e8e0d2;
     border-radius: 999px;
     background: var(--color-brand);
     cursor: pointer;

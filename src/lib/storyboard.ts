@@ -1,6 +1,7 @@
 import { ASPECT_SIZE, FPS, type LayoutId, type Scene, type SkillId, type Storyboard } from '../remotion/types';
 
 const KEY = 'motionforge:storyboard:v1';
+const ACTIVE_PROJECT_KEY = 'motionforge:active-project:v1';
 
 export const emptyStoryboard = (): Storyboard => ({
   title: 'Untitled film',
@@ -47,6 +48,23 @@ export const saveBoard = (storyboard: Storyboard) => {
     localStorage.setItem(KEY, JSON.stringify(storyboard));
   } catch {
     /* private mode — the studio still works, it just won't persist */
+  }
+};
+
+export const loadActiveProjectId = () => {
+  try {
+    return localStorage.getItem(ACTIVE_PROJECT_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const saveActiveProjectId = (id: string | null) => {
+  try {
+    if (id) localStorage.setItem(ACTIVE_PROJECT_KEY, id);
+    else localStorage.removeItem(ACTIVE_PROJECT_KEY);
+  } catch {
+    /* private mode — active project selection is optional */
   }
 };
 
