@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { LAYOUTS, LAYOUT_LABELS, TRANSITIONS, type LayoutId, type Scene, type Storyboard, type TransitionId } from './remotion/types';
 import { Badge, Button, Icon, Label, Select, TextArea, TextInput, cx } from './components';
+import { sanitizeInlineSvg } from './lib/svg';
 
 type Props = {
   storyboard: Storyboard;
@@ -33,6 +34,7 @@ const ItemsField: React.FC<{ initial: string[]; onCommit: (items: string[]) => v
 
 const SceneEditor: React.FC<{ scene: Scene; patch: (patch: Partial<Scene>) => void }> = ({ scene, patch }) => {
   const supportsItems = scene.layout === 'bullets' || scene.layout === 'split' || scene.layout === 'outro';
+  const vectorValid = !scene.visualSvg || Boolean(sanitizeInlineSvg(scene.visualSvg));
   return (
     <div className="grid gap-2.5 border-t border-line/70 px-2.5 pt-3 pb-3 sm:grid-cols-2">
       <div>
@@ -67,6 +69,20 @@ const SceneEditor: React.FC<{ scene: Scene; patch: (patch: Partial<Scene>) => vo
       <div className={scene.layout === 'stat' ? '' : 'sm:col-span-2'}>
         <Label>Sub line</Label>
         <TextInput value={scene.sub ?? ''} placeholder="Supporting line" onChange={(event) => patch({ sub: event.target.value })} />
+      </div>
+      <div className="sm:col-span-2">
+        <Label hint="optional, safe inline SVG">Vector illustration</Label>
+        <TextArea
+          rows={6}
+          value={scene.visualSvg ?? ''}
+          placeholder={'<svg viewBox="0 0 400 400">\n  <circle cx="200" cy="200" r="120" fill="#2b2823" />\n</svg>'}
+          spellCheck={false}
+          onChange={(event) => patch({ visualSvg: event.target.value || undefined })}
+          className="font-mono text-xs"
+        />
+        <p className={`mt-1 text-[11px] ${vectorValid ? 'text-dim' : 'text-text'}`}>
+          {vectorValid ? 'Use clean vector shapes. Scripts, links, and external assets are blocked.' : 'Finish the SVG markup to save this edit. Scripts, links, and external assets are blocked.'}
+        </p>
       </div>
       {scene.layout === 'stat' ? (
         <div>
@@ -213,7 +229,7 @@ export const SceneList: React.FC<Props> = ({ storyboard, onChange, openId, onOpe
                 <button
                   type="button"
                   onClick={() => remove(scene.id)}
-                  className="rounded p-1 text-dim transition hover:bg-red-500/15 hover:text-red-300"
+                  className="rounded p-1 text-dim transition hover:bg-ink-800 hover:text-text"
                   aria-label="Delete"
                 >
                   <Icon name="trash" className="size-3.5" />

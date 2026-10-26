@@ -7,6 +7,7 @@ import { fontFamily } from './fonts';
 import { LAYOUT_COMPONENTS } from './layouts';
 import { getSkill, type Skill } from './skills';
 import { sceneFrames, type Scene, type Storyboard } from './types';
+import { responsiveSvg } from '../lib/svg';
 
 /** Audio paths are relative in the app and absolute during server renders. */
 const audioSrc = (source: string) => (/^https?:\/\//.test(source) ? source : staticFile(source));
@@ -22,6 +23,7 @@ const SceneFrame: React.FC<{
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
   const unit = Math.min(width, height) / 1000;
+  const visualSvg = responsiveSvg(scene.visualSvg);
   const accent = scene.accent ?? skill.palette.accent;
   const Layout = LAYOUT_COMPONENTS[scene.layout] ?? LAYOUT_COMPONENTS.hero;
   const exit = exitStyle(frame, durationInFrames, skill.motion.exit, scene.transition);
@@ -30,6 +32,22 @@ const SceneFrame: React.FC<{
     <SceneCtx.Provider value={{ scene, skill, unit, accent, frame, durationInFrames, index, count, width, height }}>
       <AbsoluteFill style={exit}>
         <Backdrop skill={skill} />
+        {visualSvg ? (
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              zIndex: 0,
+              right: '5%',
+              top: height > width ? '55%' : '24%',
+              width: height > width ? '38%' : '42%',
+              height: height > width ? '28%' : '48%',
+              opacity: 0.9,
+              pointerEvents: 'none',
+            }}
+            dangerouslySetInnerHTML={{ __html: visualSvg }}
+          />
+        ) : null}
         <AbsoluteFill
           style={{
             padding: `${height * 0.085}px ${width * 0.075}px ${height * 0.06}px`,

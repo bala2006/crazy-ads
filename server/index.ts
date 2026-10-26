@@ -9,6 +9,7 @@ import { planStoryboard } from './ai';
 import { PUBLIC_DIR, readSettings, ROOT, ensureDirs, publicSettings, writeSettings } from './config';
 import { pruneRenders, renderStoryboard } from './render';
 import { listVoices, synthesizeScenes } from './tts';
+import { getWorkspace, saveGeneration, saveProfile } from './workspace';
 
 // Optional .env support (Node's built-in loader, no dependency). Real env vars win.
 try {
@@ -59,6 +60,26 @@ const SettingsUpdate = z.object({
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, mode: isProd ? 'production' : 'development' });
+});
+
+app.get('/api/workspace', (_req, res) => {
+  res.json(getWorkspace());
+});
+
+app.put('/api/workspace/generations', (req, res) => {
+  try {
+    res.json({ generation: saveGeneration(req.body) });
+  } catch (error) {
+    fail(res, error);
+  }
+});
+
+app.put('/api/workspace/profile', (req, res) => {
+  try {
+    res.json({ profile: saveProfile(req.body) });
+  } catch (error) {
+    fail(res, error);
+  }
 });
 
 app.get('/api/settings', (_req, res) => {

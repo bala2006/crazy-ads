@@ -12,6 +12,7 @@ import {
 } from '../src/remotion/types';
 import { getSkill } from '../src/remotion/skills';
 import { readSettings } from './config';
+import { sanitizeInlineSvg } from '../src/lib/svg';
 
 export type PlanRequest = {
   brief: string;
@@ -45,6 +46,7 @@ Return ONLY a JSON object, no markdown, with this shape:
       "items": ["optional", "short", "list", "or CTA"],
       "value": "only for stat layout, e.g. 12x",
       "narration": "the spoken line for this scene, 8-30 words, natural spoken English",
+      "visualSvg": "optional self-contained SVG illustration for scenes where a custom vector meaningfully strengthens the story",
       "seconds": number
     }
   ]
@@ -61,6 +63,7 @@ Rules:
 - "narration" must be speakable: no emoji, no symbols like %/× written awkwardly, expand ranges (say "twelve times", not "12x") when it helps speech.
 - Never repeat the same layout more than twice in a row and always open with hero, close with outro.
 - If layout is "stat", "value" is mandatory and short.
+- Add visualSvg only when an original vector illustration materially improves the scene. Use a 0 0 400 400 viewBox, a small number of clean paths/shapes, and the charcoal, forest-green, and red MotionForge palette. SVG must be self-contained and use only svg, g, path, rect, circle, ellipse, line, polyline, polygon, defs, linearGradient, radialGradient, stop, and clipPath; no text, scripts, links, styles, filters, or external assets. Keep each SVG under 8 KB.
 - Keep it factual and specific to the brief; invent plausible detail only when needed.`;
 
 /** Trims a sentence at a word boundary without leaving a dangling comma. */
@@ -224,6 +227,7 @@ export const normalizePlan = (plan: AiPlan, req: PlanRequest): Storyboard => {
       items: items.length ? items : undefined,
       narration: scene.narration?.replace(/\s+/g, ' ').trim() || [headline, sub].filter(Boolean).join('. '),
       value: scene.value?.trim() || (layout === 'stat' ? headline.slice(0, 8) : undefined),
+      visualSvg: sanitizeInlineSvg(scene.visualSvg),
     };
     return normalized;
   });

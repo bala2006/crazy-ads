@@ -199,7 +199,7 @@ export const SettingsPage: React.FC = () => {
                 step={0.05}
                 value={ai.temperature}
                 onChange={(event) => setAi({ ...ai, temperature: Number(event.target.value) })}
-                className="w-full accent-[#7c5cff]"
+                className="w-full accent-brand"
               />
             </div>
 
@@ -284,7 +284,7 @@ export const SettingsPage: React.FC = () => {
                   step={0.05}
                   value={el.stability}
                   onChange={(event) => setEl({ ...el, stability: Number(event.target.value) })}
-                  className="w-full accent-[#7c5cff]"
+                  className="w-full accent-brand"
                 />
               </div>
               <div>
@@ -296,7 +296,7 @@ export const SettingsPage: React.FC = () => {
                   step={0.05}
                   value={el.similarity}
                   onChange={(event) => setEl({ ...el, similarity: Number(event.target.value) })}
-                  className="w-full accent-[#7c5cff]"
+                  className="w-full accent-brand"
                 />
               </div>
             </div>
