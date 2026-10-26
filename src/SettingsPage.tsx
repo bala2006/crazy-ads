@@ -6,7 +6,7 @@ const AI_PRESETS = [
   { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
   { label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini' },
   { label: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
-  { label: 'Ollama (local)', baseUrl: 'http://localhost:11434/v1', model: 'llama3.1' },
+  { label: 'Azure OpenAI', baseUrl: 'https://YOUR-RESOURCE.openai.azure.com/openai/v1', model: 'YOUR-DEPLOYMENT' },
 ];
 
 const VOICE_MODELS = [
@@ -76,7 +76,7 @@ export const SettingsPage: React.FC = () => {
         render,
       });
       hydrate(next);
-      setNotice({ kind: 'ok', text: 'Settings saved to .data/config.json.' });
+      setNotice({ kind: 'ok', text: 'Provider settings saved.' });
     } catch (error) {
       setNotice({ kind: 'error', text: (error as Error).message });
     } finally {
@@ -109,8 +109,7 @@ export const SettingsPage: React.FC = () => {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
           <p className="mt-1 text-sm text-dim">
-            Keys are stored server-side in <code className="rounded bg-ink-800 px-1 py-0.5 text-[12px]">.data/config.json</code> and
-            never sent to the browser.
+            Connect your text model and narration voice. Saved keys stay on the server.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -119,6 +118,7 @@ export const SettingsPage: React.FC = () => {
               Back to studio
             </Button>
           </a>
+          <Button variant="ghost" onClick={async () => { await api.logout(); window.location.reload(); }}>Lock workspace</Button>
           <Button variant="primary" onClick={save} loading={saving} icon={<Icon name="check" />}>
             Save changes
           </Button>
@@ -190,23 +190,7 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <Label hint={`${ai.temperature.toFixed(2)} · higher is wilder`}>Creativity</Label>
-              <input
-                type="range"
-                min={0}
-                max={1.4}
-                step={0.05}
-                value={ai.temperature}
-                onChange={(event) => setAi({ ...ai, temperature: Number(event.target.value) })}
-                className="w-full accent-brand"
-              />
-            </div>
-
-            <p className="text-[11px] leading-relaxed text-dim">
-              For a local model (Ollama, LM Studio) enter the OpenAI-compatible base URL and any placeholder key — the server
-              only needs the endpoint to be reachable.
-            </p>
+            <p className="text-[11px] leading-relaxed text-dim">Use a text model with image understanding for reference images. The model returns editable JSON and SVG; visual generation APIs are never called.</p>
           </div>
         </Panel>
 
@@ -340,8 +324,8 @@ export const SettingsPage: React.FC = () => {
             </p>
             <p>
               Runtime: Node {settings?.runtime.node ?? '—'}. Generated audio lands in{' '}
-              <code className="rounded bg-ink-800 px-1 py-0.5">public/audio</code>, renders in{' '}
-              <code className="rounded bg-ink-800 px-1 py-0.5">public/renders</code> (pruned after 24h).
+              <code className="rounded bg-ink-800 px-1 py-0.5">the workspace</code>, renders in{' '}
+              <code className="rounded bg-ink-800 px-1 py-0.5">the workspace</code> (retained until you remove them).
             </p>
           </div>
         </Panel>

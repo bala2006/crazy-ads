@@ -7,3 +7,7 @@ public/audio
 public/renders
 *.log
 .env
+render-bundle
+.data-*
+test-results
+playwright-report

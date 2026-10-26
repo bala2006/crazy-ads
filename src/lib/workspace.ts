@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { StoryboardSchema } from '../remotion/schema';
 
 export const RenderArtifactSchema = z.object({
-  url: z.string().startsWith('/renders/'),
+  url: z.string().regex(/^\/renders\/[a-z0-9-]+\.mp4$/),
   fileName: z.string().min(1).max(180),
   bytes: z.number().int().nonnegative(),
   ms: z.number().nonnegative(),
@@ -16,6 +16,7 @@ export const GenerationSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   render: RenderArtifactSchema.optional(),
+  revision: z.number().int().nonnegative().optional(),
 });
 
 export const ProfileSchema = z.object({

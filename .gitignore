@@ -8,3 +8,7 @@ public/renders
 .server.pid
 .libs
 .DS_Store
+render-bundle
+.data-*
+test-results
+playwright-report

@@ -1,3 +1,4 @@
+import type { RenderJob } from './jobs';
 import type { AspectId, Scene, SkillId, Storyboard } from '../remotion/types';
 import type { Generation, WorkspaceProfile } from './workspace';
 
@@ -15,7 +16,9 @@ export type SettingsPatch = {
 };
 
 export type Voice = { id: string; name: string; accent: string | null; description: string | null };
-export type PlanResponse = { storyboard: Storyboard; source: 'ai' | 'local'; notice?: string };
+export type ModelUsage = { inputTokens: number; outputTokens: number; totalTokens: number };
+export type PlanResponse = { storyboard: Storyboard; source: 'ai' | 'local'; notice?: string; usage?: ModelUsage };
+export type ImageReference = { name: string; dataUrl: string };
 export type RenderResult = { url: string; fileName: string; bytes: number; ms: number };
 
 type Init = { method?: string; body?: unknown };
@@ -27,11 +30,19 @@ const request = async <T>(url: string, init: Init = {}): Promise<T> => {
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   });
   const payload = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
+  if (res.status === 401 && !url.includes('/api/session')) window.dispatchEvent(new Event('session-expired'));
   if (!res.ok) throw new Error(payload?.error ?? `Request failed (${res.status})`);
   return payload as T;
 };
 
 export const api = {
+  session: () => request<{ authenticated: boolean; protected: boolean }>('/api/session'),
+  login: (password: string) => request('/api/session', { method: 'POST', body: { password } }),
+  logout: () => request('/api/session', { method: 'DELETE' }),
+  jobs: () => request<{ jobs: RenderJob[] }>('/api/jobs'),
+  export: (storyboard: Storyboard, projectId?: string) => request<{ job: RenderJob }>('/api/jobs', { method: 'POST', body: { storyboard, projectId } }),
+  cancelExport: (id: string) => request<{ job: RenderJob }>(`/api/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  edit: (storyboard: Storyboard, instruction: string, sceneId?: string) => request<{ storyboard: Storyboard; summary: string; usage?: ModelUsage }>('/api/edit', { method: 'POST', body: { storyboard, instruction, sceneId } }),
   generations: () => request<{ generations: Generation[]; profile: WorkspaceProfile }>('/api/workspace'),
   saveGeneration: (generation: Generation) =>
     request<{ generation: Generation }>('/api/workspace/generations', { method: 'PUT', body: generation }),
@@ -42,74 +53,10 @@ export const api = {
   clearKey: (provider: 'ai' | 'elevenlabs') =>
     request<PublicSettings>(`/api/settings/key/${provider}`, { method: 'DELETE' }),
   voices: () => request<{ voices: Voice[]; defaultVoiceId: string }>('/api/voices'),
-  plan: (body: { brief: string; skill: SkillId; aspect: AspectId; targetSeconds: number; sceneCount: number }) =>
+  plan: (body: { brief: string; skill: SkillId; aspect: AspectId; targetSeconds: number; sceneCount: number; references?: ImageReference[] }) =>
     request<PlanResponse>('/api/plan', { method: 'POST', body }),
   voice: (body: { voiceId?: string; scenes: { id: string; text: string }[] }) =>
-    request<{ clips: { id: string; audio: string; cached: boolean }[] }>('/api/voice', { method: 'POST', body }),
+    request<{ clips: { id: string; audio: string; cached: boolean; seconds: number }[] }>('/api/voice', { method: 'POST', body }),
 };
-
-/**
- * Renders over a streaming NDJSON response so the progress bar reflects the
- * real encoder progress instead of a fake spinner.
- */
-export const renderVideo = async (
-  storyboard: Storyboard,
-  onProgress: (progress: number) => void,
-): Promise<RenderResult> => {
-  const res = await fetch('/api/render', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ storyboard }),
-  });
-
-  if (!res.ok || !res.body) {
-    const payload = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(payload?.error ?? `Render failed (${res.status})`);
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let result: RenderResult | null = null;
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let newline = buffer.indexOf('\n');
-    while (newline >= 0) {
-      const line = buffer.slice(0, newline).trim();
-      buffer = buffer.slice(newline + 1);
-      newline = buffer.indexOf('\n');
-      if (!line) continue;
-      const event = JSON.parse(line) as
-        | { type: 'progress'; progress: number }
-        | ({ type: 'done' } & RenderResult)
-        | { type: 'error'; message: string };
-      if (event.type === 'progress') onProgress(event.progress);
-      else if (event.type === 'done') {
-        result = { url: event.url, fileName: event.fileName, bytes: event.bytes, ms: event.ms };
-        onProgress(1);
-      } else throw new Error(event.message);
-    }
-  }
-
-  if (!result) throw new Error('The render finished without producing a file.');
-  return result;
-};
-
-/** Reads a generated clip's duration in the browser so scenes can be retimed. */
-export const audioDuration = (url: string): Promise<number> =>
-  new Promise((resolve) => {
-    const audio = new Audio();
-    audio.preload = 'metadata';
-    const settle = (value: number) => {
-      audio.src = '';
-      resolve(value);
-    };
-    audio.onloadedmetadata = () => settle(Number.isFinite(audio.duration) ? audio.duration : 0);
-    audio.onerror = () => settle(0);
-    audio.src = url;
-  });
 
 export type { Scene };

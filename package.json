@@ -5,17 +5,19 @@
   "description": "Self-hosted motion graphics studio: AI scripts + ElevenLabs voiceover rendered by Remotion.",
   "type": "module",
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "tsx watch --clear-screen=false server/index.ts",
-    "build": "vite build",
-    "start": "tsx server/index.ts --prod",
+    "build": "vite build && npm run check:bundle",
+    "start": "node --import tsx server/index.ts --prod",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/schema.test.ts test/skills.test.ts test/plan.test.ts test/storyboard.test.ts",
-    "check:bundle": "tsx scripts/check-remotion-bundle.ts",
-    "ci": "npm run typecheck && npm test && npm run build && npm run check:bundle",
-    "check": "npm run typecheck && npm run build"
+    "test": "node --import tsx --test test/*.test.ts",
+    "check:bundle": "node --import tsx scripts/check-remotion-bundle.ts",
+    "ci": "npm run typecheck && npm test && npm run build",
+    "check": "npm run typecheck && npm run build",
+    "test:e2e": "playwright test",
+    "prepare:browser": "node --import tsx scripts/prepare-browser.ts"
   },
   "dependencies": {
     "@fontsource/bebas-neue": "^5.3.0",
@@ -27,13 +29,15 @@
     "@remotion/player": "4.0.538",
     "@remotion/renderer": "4.0.538",
     "express": "^5.3.0",
+    "music-metadata": "^12.3.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "remotion": "4.0.538",
     "tsx": "^4.23.0",
-    "zod": "^4.6.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.0",
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
@@ -43,5 +47,8 @@
     "tailwindcss": "^4.3.0",
     "typescript": "^5.9.0",
     "vite": "^8.0.0"
+  },
+  "overrides": {
+    "zod": "$zod"
   }
 }
