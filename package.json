@@ -1,0 +1,47 @@
+{
+  "name": "motionforge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted motion graphics studio: AI scripts + ElevenLabs voiceover rendered by Remotion.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false server/index.ts",
+    "build": "vite build",
+    "start": "tsx server/index.ts --prod",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/schema.test.ts test/skills.test.ts test/plan.test.ts test/storyboard.test.ts",
+    "check:bundle": "tsx scripts/check-remotion-bundle.ts",
+    "ci": "npm run typecheck && npm test && npm run build && npm run check:bundle",
+    "check": "npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "@fontsource/bebas-neue": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/playfair-display": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
+    "@remotion/bundler": "4.0.538",
+    "@remotion/player": "4.0.538",
+    "@remotion/renderer": "4.0.538",
+    "express": "^5.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "remotion": "4.0.538",
+    "tsx": "^4.23.0",
+    "zod": "^4.6.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.0",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^5.9.0",
+    "vite": "^8.0.0"
+  }
+}

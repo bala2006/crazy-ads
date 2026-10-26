@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.data
+.libs
+public/audio
+public/renders
+*.log
+.env
