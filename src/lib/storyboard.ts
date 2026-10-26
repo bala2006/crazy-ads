@@ -1,7 +1,23 @@
 import { ASPECT_SIZE, FPS, type LayoutId, type Scene, type SkillId, type Storyboard } from '../remotion/types';
+import { StoryboardSchema } from '../remotion/schema';
+import type { Generation } from './workspace';
 
 const KEY = 'motionforge:storyboard:v1';
 const ACTIVE_PROJECT_KEY = 'motionforge:active-project:v1';
+const DRAFT_META_KEY = 'motionforge:draft-meta:v1';
+
+export const saveDraftMeta = (project?: Generation) => {
+  try { localStorage.setItem(DRAFT_META_KEY, JSON.stringify({ id: project?.id, revision: project?.revision ?? 0 })); } catch { /* optional cache */ }
+};
+export const restoreDraft = (project?: Generation): Storyboard => {
+  if (!project) return loadBoard();
+  try {
+    const meta = JSON.parse(localStorage.getItem(DRAFT_META_KEY) || '{}');
+    const draft = loadBoard();
+    if (draft.scenes.length && meta.id === project.id && meta.revision === (project.revision ?? 0)) return draft;
+  } catch { /* use server's authoritative revision */ }
+  return project.storyboard;
+};
 
 export const emptyStoryboard = (): Storyboard => ({
   title: 'Untitled film',
@@ -35,9 +51,8 @@ export const loadBoard = (): Storyboard => {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return emptyStoryboard();
-    const parsed = JSON.parse(raw) as Storyboard;
-    if (!parsed?.scenes?.length) return emptyStoryboard();
-    return { ...emptyStoryboard(), ...parsed };
+    const parsed = StoryboardSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : emptyStoryboard();
   } catch {
     return emptyStoryboard();
   }

@@ -12,6 +12,7 @@ try {
   const serveUrl = await bundle({
     entryPoint: path.resolve('src/remotion/index.ts'),
     publicDir: path.resolve('public'),
+    outDir: path.resolve('render-bundle'),
     onProgress: () => undefined,
   });
   if (!serveUrl) throw new Error('bundler returned no serve URL');

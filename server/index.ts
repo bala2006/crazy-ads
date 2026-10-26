@@ -6,8 +6,19 @@ import { z } from 'zod';
 import { StoryboardSchema } from '../src/remotion/schema';
 import { ASPECTS, SKILL_IDS } from '../src/remotion/types';
 import { planStoryboard } from './ai';
-import { PUBLIC_DIR, readSettings, ROOT, ensureDirs, publicSettings, writeSettings } from './config';
-import { pruneRenders, renderStoryboard } from './render';
+import {
+  AUDIO_DIR,
+  RENDER_DIR,
+  readSettings,
+  ROOT,
+  ensureDirs,
+  publicSettings,
+  writeSettings,
+} from './config';
+import { RenderQueue } from './jobs';
+import { installSecurity, workLimiter } from './security';
+import { ReferenceSchema } from './images';
+import { editStoryboard } from './editor';
 import { listVoices, synthesizeScenes } from './tts';
 import { getWorkspace, saveGeneration, saveProfile } from './workspace';
 
@@ -22,13 +33,22 @@ const isProd = process.argv.includes('--prod') || process.env.NODE_ENV === 'prod
 const PORT = Number(process.env.PORT ?? 3001);
 
 ensureDirs();
-pruneRenders();
+const renderQueue = new RenderQueue();
 
 const app = express();
 app.use(express.json({ limit: '8mb' }));
+installSecurity(app, isProd);
+const limitWork = workLimiter();
+app.use(['/api/plan', '/api/edit', '/api/voice'], limitWork);
 
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
-const fail = (res: Response, error: unknown, status = 400) => res.status(status).json({ error: message(error) });
+const message = (error: unknown) =>
+  error instanceof z.ZodError
+    ? error.issues[0]?.message || 'Invalid input.'
+    : error instanceof Error
+      ? error.message
+      : String(error);
+const fail = (res: Response, error: unknown, status = 400) =>
+  res.status((error as { status?: number })?.status ?? status).json({ error: message(error) });
 
 /* ------------------------------- settings ------------------------------- */
 
@@ -126,13 +146,23 @@ app.get('/api/voices', async (_req, res) => {
 
 /* --------------------------------- plan --------------------------------- */
 
-const PlanBody = z.object({
-  brief: z.string().min(3).max(4000),
-  skill: z.enum(SKILL_IDS),
-  aspect: z.enum(ASPECTS),
-  targetSeconds: z.number().min(5).max(180),
-  sceneCount: z.number().int().min(2).max(12),
-});
+const PlanBody = z
+  .object({
+    brief: z.string().max(4000).default(''),
+    references: z.array(ReferenceSchema).max(3).optional(),
+    skill: z.enum(SKILL_IDS),
+    aspect: z.enum(ASPECTS),
+    targetSeconds: z.number().min(5).max(180),
+    sceneCount: z.number().int().min(2).max(12),
+  })
+  .refine(
+    (body) => body.brief.trim().length >= 3 || !!body.references?.length,
+    'Add a brief or a reference image.',
+  )
+  .refine(
+    (body) => body.targetSeconds <= body.sceneCount * 30,
+    'Add more scenes for this duration (30 seconds maximum per scene).',
+  );
 
 app.post('/api/plan', async (req, res) => {
   const parsed = PlanBody.safeParse(req.body);
@@ -149,7 +179,10 @@ app.post('/api/plan', async (req, res) => {
 
 const VoiceBody = z.object({
   voiceId: z.string().max(80).optional(),
-  scenes: z.array(z.object({ id: z.string().min(1), text: z.string().max(2000) })).min(1).max(24),
+  scenes: z
+    .array(z.object({ id: z.string().min(1).max(100), text: z.string().max(600) }))
+    .min(1)
+    .max(24),
 });
 
 app.post('/api/voice', async (req, res) => {
@@ -163,31 +196,45 @@ app.post('/api/voice', async (req, res) => {
   }
 });
 
-/* -------------------------------- render -------------------------------- */
-
-app.post('/api/render', async (req, res) => {
-  const parsed = StoryboardSchema.safeParse((req.body as { storyboard?: unknown })?.storyboard ?? req.body);
-  if (!parsed.success) return fail(res, parsed.error.issues[0]?.message ?? 'Invalid storyboard');
-
-  res.setHeader('content-type', 'application/x-ndjson; charset=utf-8');
-  res.setHeader('cache-control', 'no-store');
-  res.setHeader('x-accel-buffering', 'no');
-  res.flushHeaders?.();
-
-  const send = (payload: Record<string, unknown>) => {
-    if (!res.writableEnded) res.write(`${JSON.stringify(payload)}\n`);
-  };
-
+/* ------------------------------- AI editor ------------------------------ */
+app.post('/api/edit', async (req, res) => {
+  const parsed = z
+    .object({
+      storyboard: StoryboardSchema,
+      instruction: z.string().trim().min(3).max(2000),
+      sceneId: z.string().max(100).optional(),
+    })
+    .safeParse(req.body);
+  if (!parsed.success) return fail(res, parsed.error.issues[0]?.message ?? 'Invalid edit.');
   try {
-    const result = await renderStoryboard(parsed.data, `http://127.0.0.1:${PORT}`, (progress) =>
-      send({ type: 'progress', progress }),
-    );
-    send({ type: 'done', ...result });
+    res.json(await editStoryboard(parsed.data.storyboard, parsed.data.instruction, parsed.data.sceneId));
   } catch (error) {
-    send({ type: 'error', message: message(error) });
-  } finally {
-    res.end();
+    fail(res, error, 502);
   }
+});
+
+/* ----------------------------- durable exports -------------------------- */
+app.get('/api/jobs', (_req, res) => res.json({ jobs: renderQueue.list() }));
+app.post('/api/jobs', (req, res) => {
+  const parsed = z
+    .object({ storyboard: StoryboardSchema, projectId: z.string().min(1).max(100).optional() })
+    .safeParse(req.body);
+  if (!parsed.success) return fail(res, parsed.error.issues[0]?.message ?? 'Invalid export.');
+  try {
+    res.status(202).json({ job: renderQueue.enqueue(parsed.data.storyboard, parsed.data.projectId) });
+  } catch (error) {
+    fail(res, error);
+  }
+});
+app.get('/api/jobs/:id', (req, res) => {
+  const job = renderQueue.get(req.params.id);
+  if (!job) return fail(res, 'Export not found.', 404);
+  res.json({ job });
+});
+app.delete('/api/jobs/:id', (req, res) => {
+  const job = renderQueue.cancel(req.params.id);
+  if (!job) return fail(res, 'Export not found.', 404);
+  res.json({ job });
 });
 
 app.use('/api', (req: Request, res: Response) => {
@@ -196,9 +243,45 @@ app.use('/api', (req: Request, res: Response) => {
 
 /* ------------------------------ media + spa ----------------------------- */
 
-app.use('/audio', express.static(path.join(PUBLIC_DIR, 'audio'), { maxAge: '7d', immutable: true }));
-app.use('/renders', express.static(path.join(PUBLIC_DIR, 'renders'), { maxAge: '1h' }));
+app.use('/audio', express.static(AUDIO_DIR, { cacheControl: false }));
+app.use(
+  '/renders',
+  express.static(RENDER_DIR, {
+    cacheControl: false,
+    setHeaders: (res) => res.setHeader('Content-Disposition', 'attachment'),
+  }),
+);
+app.use(['/audio', '/renders'], (_req, res) => res.status(404).json({ error: 'Media file not found.' }));
 
+app.use((error: unknown, _req: Request, res: Response, _next: express.NextFunction) => {
+  if (res.headersSent) return res.end();
+  const status = (error as { status?: number }).status || 500;
+  res
+    .status(status)
+    .json({
+      error:
+        status === 413
+          ? 'Request is too large. Use up to three compressed reference images.'
+          : status === 400
+            ? 'Invalid JSON request.'
+            : 'The server could not complete this request.',
+    });
+});
+
+const serve = (server: http.Server) => {
+  server.requestTimeout = 180_000;
+  server.listen(PORT, process.env.HOST || '0.0.0.0', () => {
+    renderQueue.start();
+    console.log(`MotionForge · ${isProd ? 'production' : 'development'} · http://localhost:${PORT}`);
+  });
+  const shutdown = () => {
+    server.close();
+    void renderQueue.stop().finally(() => process.exit(0));
+    setTimeout(() => process.exit(1), 25_000).unref();
+  };
+  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', shutdown);
+};
 const start = async () => {
   if (isProd) {
     const dist = path.join(ROOT, 'dist');
@@ -222,10 +305,7 @@ const start = async () => {
     });
     app.use(vite.middlewares);
     app.use((_req, res) => res.status(404).send('Not found'));
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`\n  MotionForge · development`);
-      console.log(`  → http://localhost:${PORT}\n`);
-    });
+    serve(server);
     return;
   }
 
@@ -233,10 +313,7 @@ const start = async () => {
     res.status(404).send('Not found');
   });
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n  MotionForge · ${isProd ? 'production' : 'development'}`);
-    console.log(`  → http://localhost:${PORT}\n`);
-  });
+  serve(http.createServer(app));
 };
 
 start().catch((error) => {

@@ -10,6 +10,7 @@ export const LAYOUTS = ['hero', 'statement', 'bullets', 'stat', 'quote', 'split'
 export type LayoutId = (typeof LAYOUTS)[number];
 
 export const TRANSITIONS = ['fade', 'slide', 'wipe', 'zoom', 'cut'] as const;
+export const VISUAL_MOTIONS = ['float', 'pulse', 'rotate', 'reveal', 'still'] as const;
 export type TransitionId = (typeof TRANSITIONS)[number];
 
 export const SKILL_IDS = [
@@ -43,6 +44,7 @@ export type Scene = {
   audio?: string;
   /** Safe inline SVG used as a decorative vector element in the rendered scene. */
   visualSvg?: string;
+  visualMotion?: (typeof VISUAL_MOTIONS)[number];
   accent?: string;
 };
 

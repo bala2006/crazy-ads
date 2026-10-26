@@ -1,17 +1,13 @@
 name: CI
-
 on:
   push:
   pull_request:
   workflow_dispatch:
-
 concurrency:
   group: ci-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
-
 permissions:
   contents: read
-
 jobs:
   ci:
     name: Node ${{ matrix.node }}
@@ -19,45 +15,33 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['20', '22']
+        node: ['22', '24']
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-
-      - name: Install dependencies (lockfile must be in sync)
-        run: npm ci
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Unit tests
-        run: npm test
-
-      - name: Build studio
-        run: npm run build
-
-      - name: Remotion bundle smoke test
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Audit production dependencies
         if: matrix.node == '22'
-        run: npm run check:bundle
-
-      - name: Verify the production server boots and serves the app
-        run: |
-          npm start > /tmp/motionforge.log 2>&1 &
-          for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:3001/api/health > /dev/null; then break; fi
-            sleep 1
-          done
-          curl -sf http://127.0.0.1:3001/api/health | grep -q '"ok":true'
-          curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/ | grep -q '200'
-          curl -sf http://127.0.0.1:3001/api/settings | grep -q '"ai"'
-          curl -sf -X POST http://127.0.0.1:3001/api/plan \
-            -H 'content-type: application/json' \
-            -d '{"brief":"A one line launch teaser for a self-hosted motion graphics studio.","skill":"neon-cyber","aspect":"16:9","targetSeconds":20,"sceneCount":4}' \
-            | grep -q '"scenes"'
-          echo "server smoke test passed"
+        run: npm audit --omit=dev --audit-level=high
+      - name: Install browser system libraries
+        if: matrix.node == '22'
+        run: npx playwright install-deps chromium
+      - name: Prepare rendering browser
+        if: matrix.node == '22'
+        run: npm run prepare:browser
+      - name: Browser workflow and real MP4 export
+        if: matrix.node == '22'
+        run: npm run test:e2e
+      - name: Upload browser diagnostics
+        if: failure() && matrix.node == '22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-diagnostics
+          path: test-results/
+          retention-days: 5

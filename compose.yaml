@@ -1,0 +1,23 @@
+services:
+  studio:
+    build: .
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      STUDIO_PASSWORD: ${STUDIO_PASSWORD:?Set a private password with at least 16 characters in .env}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:3001}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-21m00Tcm4TlvDq8ikWAM}
+      ELEVENLABS_MODEL_ID: ${ELEVENLABS_MODEL_ID:-eleven_multilingual_v2}
+    volumes:
+      - studio-data:/app/.data
+    shm_size: 1gb
+    stop_grace_period: 30s
+volumes:
+  studio-data:

@@ -121,6 +121,7 @@ export const Notice: React.FC<{ kind?: 'info' | 'error' | 'ok'; children: ReactN
   onClose,
 }) => (
   <div
+    role={kind === 'error' ? 'alert' : 'status'}
     className={cx(
       'flex items-start gap-2 rounded-lg border px-3 py-2 text-xs leading-relaxed',
       kind === 'info' && 'border-brand/30 bg-brand/10 text-brand-soft',

@@ -5,6 +5,7 @@ import { fontFamily } from './fonts';
 import type { Skill } from './skills';
 import type { LayoutId } from './types';
 import { Enter, Heading, Kicker, Rule, Sub, Words, fitHeading, headingType } from './ui';
+import { VectorArt } from './VectorArt';
 
 /* ------------------------------------------------------------------ *\
    Layouts are pure: they read the scene + skill from context and own
@@ -334,7 +335,7 @@ const SplitLayout: React.FC = () => {
       </div>
       <div style={{ flex: 0.85, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Enter delay={2} duration={26}>
-          <Orb skill={skill} unit={unit} />
+          {scene.visualSvg ? <VectorArt scene={scene} size={Math.min(width * (height > width ? 0.6 : 0.32), height * 0.38)} /> : <Orb skill={skill} unit={unit} />}
         </Enter>
       </div>
     </div>

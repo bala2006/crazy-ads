@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { AssetsPage } from './pages/AssetsPage';
 import { GenerationsPage } from './pages/GenerationsPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SettingsPage } from './SettingsPage';
-import { Studio } from './Studio';
+const Studio = lazy(() => import('./Studio').then((module) => ({ default: module.Studio })));
+import { SessionGate } from './SessionGate';
 import { Icon, cx } from './components';
 import { api } from './lib/api';
-import { emptyStoryboard, saveActiveProjectId, saveBoard } from './lib/storyboard';
+import { emptyStoryboard, saveActiveProjectId, saveBoard, saveDraftMeta } from './lib/storyboard';
 import { DEFAULT_PROFILE, type Generation, type WorkspaceProfile } from './lib/workspace';
 
 type Route = 'overview' | 'create' | 'generations' | 'assets' | 'settings' | 'profile';
@@ -26,7 +27,7 @@ const links: { route: Route; label: string; icon: 'home' | 'plus' | 'film' | 'la
   { route: 'profile', label: 'Profile', icon: 'user' },
 ];
 
-export default function App() {
+function WorkspaceApp() {
   const [route, setRoute] = useState<Route>(routeFromHash);
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [profile, setProfile] = useState<WorkspaceProfile>(DEFAULT_PROFILE);
@@ -34,6 +35,17 @@ export default function App() {
   const [workspaceError, setWorkspaceError] = useState('');
   const [search, setSearch] = useState('');
   const [newProjectToken, setNewProjectToken] = useState(0);
+  const searchInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); searchInput.current?.focus(); } };
+    window.addEventListener('keydown', shortcut); return () => window.removeEventListener('keydown', shortcut);
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => { api.generations().then((workspace) => setGenerations(workspace.generations)).catch(() => undefined); };
+    window.addEventListener('workspace-updated', refresh);
+    return () => window.removeEventListener('workspace-updated', refresh);
+  }, []);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -60,7 +72,9 @@ export default function App() {
   };
 
   const openGeneration = (generation: Generation) => {
+    setNewProjectToken((token) => token + 1);
     saveBoard(generation.storyboard);
+    saveDraftMeta(generation);
     saveActiveProjectId(generation.id);
     navigate('create');
   };
@@ -73,11 +87,11 @@ export default function App() {
   };
 
   const saveGeneration = async (generation: Generation) => {
-    setGenerations((current) => [generation, ...current.filter((item) => item.id !== generation.id)].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
     try {
       const response = await api.saveGeneration(generation);
       setGenerations((current) => [response.generation, ...current.filter((item) => item.id !== response.generation.id)].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
       setWorkspaceError('');
+      return response.generation;
     } catch (error) {
       setWorkspaceError((error as Error).message);
       throw error;
@@ -94,7 +108,7 @@ export default function App() {
 
   return (
     <div className="min-h-dvh bg-ink-950 text-text">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col bg-sidebar text-sidebar-text lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[208px] flex-col bg-sidebar text-sidebar-text lg:flex">
         <a href="#/overview" className="flex h-[72px] items-center gap-3 border-b border-sidebar-line px-6">
           <BrandMark inverted />
           <span className="text-[17px] font-bold tracking-tight">MotionForge</span>
@@ -116,13 +130,14 @@ export default function App() {
         </div>
       </aside>
 
-      <div className="min-h-dvh lg:pl-[248px]">
+      <div className="min-h-dvh lg:pl-[208px]">
         <header className="sticky top-0 z-30 border-b border-line bg-ink-900/95 backdrop-blur-md">
           <div className="mx-auto flex h-[72px] max-w-[1600px] items-center gap-3 px-4 sm:px-6 lg:px-8">
             <a href="#/overview" className="flex items-center gap-2 lg:hidden"><BrandMark className="size-7" /><span className="font-bold">MotionForge</span></a>
             <label className="ml-auto flex w-full max-w-[500px] items-center gap-2 rounded-lg border border-line bg-ink-950 px-3 py-2 text-dim focus-within:border-brand-2">
               <Icon name="search" className="size-4" />
               <input
+                ref={searchInput}
                 value={search}
                 aria-label="Search generations"
                 onFocus={() => { if (route !== 'generations') navigate('generations'); }}
@@ -144,12 +159,12 @@ export default function App() {
 
         {workspaceError ? <div role="status" className="mx-5 mt-4 rounded-lg border border-line-bright bg-ink-800 px-4 py-2 text-sm text-text lg:mx-8">Workspace save issue: {workspaceError}</div> : null}
 
-        <main>
+        <main><Suspense fallback={<p className="p-8 text-sm text-dim" role="status">Opening your studio…</p>}>
           {route === 'overview' ? (
             <OverviewPage generations={generations} profile={profile} onCreate={newCreation} onViewAll={() => navigate('generations')} onOpen={openGeneration} />
           ) : null}
-          {route === 'create' ? (
-            <Studio generations={generations} onProjectSaved={saveGeneration} newProjectToken={newProjectToken} workspaceLoaded={workspaceLoaded} />
+          {route === 'create' && workspaceLoaded ? (
+            <Studio key={newProjectToken} generations={generations} onProjectSaved={saveGeneration} onNew={newCreation} />
           ) : null}
           {route === 'generations' ? (
             <GenerationsPage generations={generations} search={search} onSearchChange={setSearch} onCreate={newCreation} onOpen={openGeneration} />
@@ -158,7 +173,7 @@ export default function App() {
           {route === 'settings' ? <SettingsPage /> : null}
           {route === 'profile' ? <ProfilePage profile={profile} onSave={updateProfile} /> : null}
           {!workspaceLoaded && route === 'overview' ? <p className="sr-only" role="status">Loading workspace</p> : null}
-        </main>
+        </Suspense></main>
       </div>
     </div>
   );
@@ -197,3 +212,5 @@ const BrandMark: React.FC<{ className?: string; inverted?: boolean }> = ({ class
     <path d="M8 23 22 9M9 9h14v14" fill="none" stroke={inverted ? '#2b2823' : '#f3ede3'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
+
+export default function App() { return <SessionGate><WorkspaceApp /></SessionGate>; }

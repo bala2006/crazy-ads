@@ -1,5 +1,14 @@
-import React, { useState } from 'react';
-import { LAYOUTS, LAYOUT_LABELS, TRANSITIONS, type LayoutId, type Scene, type Storyboard, type TransitionId } from './remotion/types';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  LAYOUTS,
+  LAYOUT_LABELS,
+  TRANSITIONS,
+  VISUAL_MOTIONS,
+  type LayoutId,
+  type Scene,
+  type Storyboard,
+  type TransitionId,
+} from './remotion/types';
 import { Badge, Button, Icon, Label, Select, TextArea, TextInput, cx } from './components';
 import { sanitizeInlineSvg } from './lib/svg';
 
@@ -11,8 +20,19 @@ type Props = {
   onSeek: (index: number) => void;
 };
 
-const ItemsField: React.FC<{ initial: string[]; onCommit: (items: string[]) => void }> = ({ initial, onCommit }) => {
+const ItemsField: React.FC<{ initial: string[]; onCommit: (items: string[]) => void }> = ({
+  initial,
+  onCommit,
+}) => {
   const [text, setText] = useState(initial.join('\n'));
+  const emitted = useRef(initial.join('\n'));
+  const serialized = initial.join('\n');
+  useEffect(() => {
+    if (emitted.current !== serialized) {
+      setText(serialized);
+      emitted.current = serialized;
+    }
+  }, [serialized]);
   return (
     <TextArea
       rows={3}
@@ -20,26 +40,33 @@ const ItemsField: React.FC<{ initial: string[]; onCommit: (items: string[]) => v
       placeholder={'One item per line'}
       onChange={(event) => {
         setText(event.target.value);
-        onCommit(
-          event.target.value
-            .split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .slice(0, 6),
-        );
+        const items = event.target.value
+          .split('\n')
+          .map((line) => line.trim().slice(0, 160))
+          .filter(Boolean)
+          .slice(0, 6);
+        emitted.current = items.join('\n');
+        onCommit(items);
       }}
     />
   );
 };
 
-const SceneEditor: React.FC<{ scene: Scene; patch: (patch: Partial<Scene>) => void }> = ({ scene, patch }) => {
+export const SceneEditor: React.FC<{ scene: Scene; patch: (patch: Partial<Scene>) => void }> = ({
+  scene,
+  patch,
+}) => {
   const supportsItems = scene.layout === 'bullets' || scene.layout === 'split' || scene.layout === 'outro';
   const vectorValid = !scene.visualSvg || Boolean(sanitizeInlineSvg(scene.visualSvg));
   return (
     <div className="grid gap-2.5 border-t border-line/70 px-2.5 pt-3 pb-3 sm:grid-cols-2">
       <div>
         <Label>Layout</Label>
-        <Select value={scene.layout} onChange={(event) => patch({ layout: event.target.value as LayoutId })}>
+        <Select
+          aria-label="Scene layout"
+          value={scene.layout}
+          onChange={(event) => patch({ layout: event.target.value as LayoutId })}
+        >
           {LAYOUTS.map((layout) => (
             <option key={layout} value={layout}>
               {LAYOUT_LABELS[layout]}
@@ -51,48 +78,103 @@ const SceneEditor: React.FC<{ scene: Scene; patch: (patch: Partial<Scene>) => vo
         <Label hint="seconds">Duration</Label>
         <TextInput
           type="number"
+          aria-label="Scene duration"
           min={1.5}
           max={30}
           step={0.5}
           value={scene.seconds}
-          onChange={(event) => patch({ seconds: Math.min(30, Math.max(1.5, Number(event.target.value) || 1.5)) })}
+          onChange={(event) =>
+            patch({ seconds: Math.min(30, Math.max(1.5, Number(event.target.value) || 1.5)) })
+          }
         />
       </div>
       <div className="sm:col-span-2">
         <Label hint="small label above the headline">Kicker</Label>
-        <TextInput value={scene.kicker ?? ''} placeholder="e.g. The workflow" onChange={(event) => patch({ kicker: event.target.value })} />
+        <TextInput
+          aria-label="Kicker"
+          maxLength={80}
+          value={scene.kicker ?? ''}
+          placeholder="e.g. The workflow"
+          onChange={(event) => patch({ kicker: event.target.value })}
+        />
       </div>
       <div className="sm:col-span-2">
         <Label hint="use a new line to break the line">Headline</Label>
-        <TextArea rows={2} value={scene.headline} onChange={(event) => patch({ headline: event.target.value })} />
+        <TextArea
+          rows={2}
+          aria-label="Scene headline"
+          maxLength={200}
+          value={scene.headline}
+          onChange={(event) => patch({ headline: event.target.value })}
+        />
       </div>
       <div className={scene.layout === 'stat' ? '' : 'sm:col-span-2'}>
         <Label>Sub line</Label>
-        <TextInput value={scene.sub ?? ''} placeholder="Supporting line" onChange={(event) => patch({ sub: event.target.value })} />
+        <TextInput
+          aria-label="Supporting line"
+          maxLength={300}
+          value={scene.sub ?? ''}
+          placeholder="Supporting line"
+          onChange={(event) => patch({ sub: event.target.value })}
+        />
       </div>
       <div className="sm:col-span-2">
-        <Label hint="optional, safe inline SVG">Vector illustration</Label>
-        <TextArea
-          rows={6}
-          value={scene.visualSvg ?? ''}
-          placeholder={'<svg viewBox="0 0 400 400">\n  <circle cx="200" cy="200" r="120" fill="#2b2823" />\n</svg>'}
-          spellCheck={false}
-          onChange={(event) => patch({ visualSvg: event.target.value || undefined })}
-          className="font-mono text-xs"
+        <details>
+          <summary className="mb-2 cursor-pointer text-xs font-semibold">
+            Vector illustration · advanced
+          </summary>
+          <Label hint="passive SVG">Vector illustration</Label>
+          <TextArea
+            rows={6}
+            value={scene.visualSvg ?? ''}
+            placeholder={
+              '<svg viewBox="0 0 400 400">\n  <circle cx="200" cy="200" r="120" fill="#2b2823" />\n</svg>'
+            }
+            spellCheck={false}
+            onChange={(event) => patch({ visualSvg: event.target.value || undefined })}
+            className="font-mono text-xs"
+          />
+          <p className={`mt-1 text-[11px] ${vectorValid ? 'text-dim' : 'text-text'}`}>
+            {vectorValid
+              ? 'Use the Split layout to place vector art next to your text.'
+              : 'Invalid SVG. Finish the markup before exporting.'}
+          </p>
+        </details>
+        <Label>Vector motion</Label>
+        <Select
+          aria-label="Vector motion"
+          value={scene.visualMotion || 'float'}
+          onChange={(event) => patch({ visualMotion: event.target.value as Scene['visualMotion'] })}
+        >
+          {VISUAL_MOTIONS.map((motion) => (
+            <option key={motion}>{motion}</option>
+          ))}
+        </Select>
+        <Label>Accent color</Label>
+        <input
+          aria-label="Accent color"
+          type="color"
+          value={scene.accent || '#5c9d78'}
+          onChange={(event) => patch({ accent: event.target.value })}
         />
-        <p className={`mt-1 text-[11px] ${vectorValid ? 'text-dim' : 'text-text'}`}>
-          {vectorValid ? 'Use clean vector shapes. Scripts, links, and external assets are blocked.' : 'Finish the SVG markup to save this edit. Scripts, links, and external assets are blocked.'}
-        </p>
       </div>
       {scene.layout === 'stat' ? (
         <div>
           <Label hint="e.g. 12x">Big value</Label>
-          <TextInput value={scene.value ?? ''} placeholder="12x" onChange={(event) => patch({ value: event.target.value })} />
+          <TextInput
+            aria-label="Value"
+            maxLength={24}
+            value={scene.value ?? ''}
+            placeholder="12x"
+            onChange={(event) => patch({ value: event.target.value })}
+          />
         </div>
       ) : null}
       {supportsItems ? (
         <div className="sm:col-span-2">
-          <Label hint={scene.layout === 'outro' ? 'first item becomes the CTA button' : 'one per line, max 6'}>
+          <Label
+            hint={scene.layout === 'outro' ? 'first item becomes the CTA button' : 'one per line, max 6'}
+          >
             {scene.layout === 'outro' ? 'Call to action' : 'Items'}
           </Label>
           <ItemsField key={scene.id} initial={scene.items ?? []} onCommit={(items) => patch({ items })} />
@@ -102,6 +184,8 @@ const SceneEditor: React.FC<{ scene: Scene; patch: (patch: Partial<Scene>) => vo
         <Label hint="spoken by ElevenLabs">Narration</Label>
         <TextArea
           rows={2}
+          aria-label="Narration"
+          maxLength={600}
           value={scene.narration ?? ''}
           placeholder="What the voiceover says in this scene"
           onChange={(event) => patch({ narration: event.target.value, audio: undefined })}
@@ -109,7 +193,11 @@ const SceneEditor: React.FC<{ scene: Scene; patch: (patch: Partial<Scene>) => vo
       </div>
       <div>
         <Label>Exit transition</Label>
-        <Select value={scene.transition} onChange={(event) => patch({ transition: event.target.value as TransitionId })}>
+        <Select
+          aria-label="Scene transition"
+          value={scene.transition}
+          onChange={(event) => patch({ transition: event.target.value as TransitionId })}
+        >
           {TRANSITIONS.map((transition) => (
             <option key={transition} value={transition}>
               {transition}
@@ -125,7 +213,10 @@ export const SceneList: React.FC<Props> = ({ storyboard, onChange, openId, onOpe
   const { scenes } = storyboard;
 
   const patchScene = (id: string, patch: Partial<Scene>) =>
-    onChange({ ...storyboard, scenes: scenes.map((scene) => (scene.id === id ? { ...scene, ...patch } : scene)) });
+    onChange({
+      ...storyboard,
+      scenes: scenes.map((scene) => (scene.id === id ? { ...scene, ...patch } : scene)),
+    });
 
   const move = (index: number, direction: -1 | 1) => {
     const target = index + direction;
@@ -137,7 +228,8 @@ export const SceneList: React.FC<Props> = ({ storyboard, onChange, openId, onOpe
     onChange({ ...storyboard, scenes: next });
   };
 
-  const remove = (id: string) => onChange({ ...storyboard, scenes: scenes.filter((scene) => scene.id !== id) });
+  const remove = (id: string) =>
+    onChange({ ...storyboard, scenes: scenes.filter((scene) => scene.id !== id) });
 
   const duplicate = (scene: Scene) => {
     const index = scenes.findIndex((item) => item.id === scene.id);
@@ -152,9 +244,27 @@ export const SceneList: React.FC<Props> = ({ storyboard, onChange, openId, onOpe
       <div className="rounded-lg border border-dashed border-line px-4 py-8 text-center">
         <Icon name="film" className="mx-auto size-6 text-dim" />
         <p className="mt-2 text-sm font-medium">No scenes yet</p>
-        <p className="mt-1 text-xs text-dim">Write a brief and generate a storyboard, or add scenes by hand.</p>
+        <p className="mt-1 text-xs text-dim">
+          Write a brief and generate a storyboard, or add scenes by hand.
+        </p>
         <div className="mt-3 flex justify-center gap-2">
-          <Button size="sm" onClick={() => onChange({ ...storyboard, scenes: [{ id: `s-${Date.now()}`, layout: 'hero', headline: 'Your headline', seconds: 4, transition: 'fade' }] })}>
+          <Button
+            size="sm"
+            onClick={() =>
+              onChange({
+                ...storyboard,
+                scenes: [
+                  {
+                    id: `s-${Date.now()}`,
+                    layout: 'hero',
+                    headline: 'Your headline',
+                    seconds: 4,
+                    transition: 'fade',
+                  },
+                ],
+              })
+            }
+          >
             <Icon name="plus" /> Add first scene
           </Button>
         </div>
